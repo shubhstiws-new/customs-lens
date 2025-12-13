@@ -112,6 +112,25 @@ class Part1Payment:
 
 
 @dataclass
+class Part1Bond:
+    """Part I - Section E: Bond Details"""
+    bond_no: str = ""
+    port: str = ""
+    bond_code: str = ""
+    debt_amt: float = 0.0
+    bg_amt: float = 0.0
+
+
+@dataclass
+class Part1InvoiceSummary:
+    """Part I - Section I: Invoice Details Summary"""
+    sno: int = 0
+    invoice_no: str = ""
+    inv_amt: float = 0.0
+    currency: str = ""
+
+
+@dataclass
 class Part1Processing:
     """Part I - Section H: Processing Details"""
     event: str = ""
@@ -228,6 +247,8 @@ class BillOfEntry:
     part1_declarant: Part1Declarant = field(default_factory=Part1Declarant)
     part1_duty_summary: Part1DutySummary = field(default_factory=Part1DutySummary)
     part1_manifest: Part1Manifest = field(default_factory=Part1Manifest)
+    part1_bond: Part1Bond = field(default_factory=Part1Bond)
+    part1_invoice_summary: list = field(default_factory=list)
     part1_payments: list = field(default_factory=list)
     part1_processing: list = field(default_factory=list)
     part1_containers: list = field(default_factory=list)
@@ -246,6 +267,8 @@ class BillOfEntry:
             "part1_declarant": asdict(self.part1_declarant),
             "part1_duty_summary": asdict(self.part1_duty_summary),
             "part1_manifest": asdict(self.part1_manifest),
+            "part1_bond": asdict(self.part1_bond),
+            "part1_invoice_summary": [asdict(i) for i in self.part1_invoice_summary],
             "part1_payments": [asdict(p) for p in self.part1_payments],
             "part1_processing": [asdict(p) for p in self.part1_processing],
             "part1_containers": [asdict(c) for c in self.part1_containers],
@@ -296,11 +319,57 @@ def find_table_by_headers(tables: list, header_keywords: list, page: Optional[in
     return None
 
 
+def extract_from_lines(lines: list, start_keyword: str, offset: int = 1) -> str:
+    """Extract value from lines following a keyword"""
+    for i, line in enumerate(lines):
+        content = str(line.get('content', '') if isinstance(line, dict) else line)
+        if start_keyword.upper() in content.upper():
+            if i + offset < len(lines):
+                next_line = lines[i + offset]
+                return str(next_line.get('content', '') if isinstance(next_line, dict) else next_line).strip()
+    return ""
+
+
+def extract_multiline_value(lines: list, start_idx: int, end_keywords: list, max_lines: int = 5) -> str:
+    """Extract multi-line value until we hit an end keyword or max lines"""
+    values = []
+    for i in range(start_idx, min(start_idx + max_lines, len(lines))):
+        content = str(lines[i].get('content', '') if isinstance(lines[i], dict) else lines[i]).strip()
+        # Check if we've hit an end keyword
+        if any(kw.upper() in content.upper() for kw in end_keywords):
+            break
+        if content and not content.startswith(('1.', '2.', '3.', '4.', '5.')):
+            values.append(content)
+    return ' '.join(values)
+
+
+def find_line_index(lines: list, keyword: str) -> int:
+    """Find the index of a line containing the keyword"""
+    for i, line in enumerate(lines):
+        content = str(line.get('content', '') if isinstance(line, dict) else line)
+        if keyword.upper() in content.upper():
+            return i
+    return -1
+
+
 def parse_ocr_output(ocr_data: dict) -> BillOfEntry:
     """Parse OCR output into structured Bill of Entry data"""
 
     boe = BillOfEntry()
     tables = ocr_data.get("tables_raw", [])
+
+    # Get page lines for line-based extraction
+    raw_data_path = Path(__file__).parent.parent / "output" / "ocr_raw_output.json"
+    page_lines = []
+    if raw_data_path.exists():
+        try:
+            with open(raw_data_path) as f:
+                raw_ocr = json.load(f)
+            pages = raw_ocr.get('pages', [])
+            if pages:
+                page_lines = pages[0].get('lines', [])
+        except Exception:
+            pass
 
     # Parse Header from first page tables
     header_table = find_table_by_headers(tables, ["Port Code", "BE No"], page=1)
@@ -354,26 +423,241 @@ def parse_ocr_output(ocr_data: dict) -> BillOfEntry:
                     elif i == 3:
                         boe.header.cont_count = parse_int(val)
 
-    # Parse Duty Summary
-    duty_table = find_table_by_headers(tables, ["BCD", "ACD"], page=1)
-    if duty_table:
-        data = duty_table.get("data", [])
-        # Find the row with numeric values
-        for row in data:
-            values = [parse_float(c) for c in row]
-            if sum(values) > 0:
-                # Map values to duty fields based on position
-                if len(values) >= 10:
-                    boe.part1_duty_summary.bcd = values[0] if len(values) > 0 else 0
-                    boe.part1_duty_summary.acd = values[1] if len(values) > 1 else 0
-                    boe.part1_duty_summary.sws = values[2] if len(values) > 2 else 0
-                    boe.part1_duty_summary.nccd = values[3] if len(values) > 3 else 0
-                    boe.part1_duty_summary.add_duty = values[4] if len(values) > 4 else 0
-                    boe.part1_duty_summary.cvd = values[5] if len(values) > 5 else 0
-                    boe.part1_duty_summary.igst = values[6] if len(values) > 6 else 0
-                    boe.part1_duty_summary.g_cess = values[7] if len(values) > 7 else 0
-                    boe.part1_duty_summary.tot_ass_val = values[8] if len(values) > 8 else 0
-                    boe.part1_duty_summary.total_duty = values[9] if len(values) > 9 else 0
+    # === LINE-BASED EXTRACTION FOR MISSING FIELDS ===
+    if page_lines:
+        # Extract CB CODE from lines (line after "CB CODE" label)
+        cb_code_idx = find_line_index(page_lines, "CB CODE")
+        if cb_code_idx >= 0:
+            # CB CODE value is typically 3 lines after the label
+            for offset in range(1, 5):
+                if cb_code_idx + offset < len(page_lines):
+                    val = page_lines[cb_code_idx + offset].get('content', '') if isinstance(page_lines[cb_code_idx + offset], dict) else page_lines[cb_code_idx + offset]
+                    val = str(val).strip()
+                    # CB code pattern: alphanumeric, typically 15 chars
+                    if val and len(val) >= 10 and val[0].isalpha() and not val.startswith(('INDIAN', 'PORT', 'OOC')):
+                        boe.header.cb_code = val
+                        break
+
+        # Extract Gross Weight from lines
+        gw_idx = find_line_index(page_lines, "G.WT (KGS)")
+        if gw_idx >= 0 and gw_idx + 1 < len(page_lines):
+            gw_val = page_lines[gw_idx + 1].get('content', '') if isinstance(page_lines[gw_idx + 1], dict) else page_lines[gw_idx + 1]
+            boe.header.gross_weight_kgs = parse_float(gw_val)
+
+        # Extract Country of Origin
+        origin_idx = find_line_index(page_lines, "COUNTRY OF ORIGIN")
+        if origin_idx >= 0 and origin_idx + 1 < len(page_lines):
+            origin_val = page_lines[origin_idx + 1].get('content', '') if isinstance(page_lines[origin_idx + 1], dict) else page_lines[origin_idx + 1]
+            boe.part1_status.country_origin = str(origin_val).strip()
+
+        # Extract Country of Consignment
+        consignment_idx = find_line_index(page_lines, "COUNTRY OF CONSIGNMENT")
+        if consignment_idx >= 0 and consignment_idx + 1 < len(page_lines):
+            consignment_val = page_lines[consignment_idx + 1].get('content', '') if isinstance(page_lines[consignment_idx + 1], dict) else page_lines[consignment_idx + 1]
+            boe.part1_status.country_consignment = str(consignment_val).strip()
+
+        # Extract Port of Loading
+        loading_idx = find_line_index(page_lines, "PORT OF LOADING")
+        if loading_idx >= 0 and loading_idx + 1 < len(page_lines):
+            loading_val = page_lines[loading_idx + 1].get('content', '') if isinstance(page_lines[loading_idx + 1], dict) else page_lines[loading_idx + 1]
+            boe.part1_status.port_loading = str(loading_val).strip()
+
+        # Extract Port of Shipment
+        shipment_idx = find_line_index(page_lines, "PORT OF SHIPMENT")
+        if shipment_idx >= 0 and shipment_idx + 1 < len(page_lines):
+            shipment_val = page_lines[shipment_idx + 1].get('content', '') if isinstance(page_lines[shipment_idx + 1], dict) else page_lines[shipment_idx + 1]
+            boe.part1_status.port_shipment = str(shipment_val).strip()
+
+        # Extract Importer Name & Address (multi-line)
+        # Structure varies - text may be interleaved with DECLARANT header
+        importer_idx = find_line_index(page_lines, "IMPORTER NAME")
+        if importer_idx >= 0:
+            importer_lines = []
+            for offset in range(1, 10):
+                if importer_idx + offset < len(page_lines):
+                    line_val = page_lines[importer_idx + offset].get('content', '') if isinstance(page_lines[importer_idx + offset], dict) else page_lines[importer_idx + offset]
+                    line_val = str(line_val).strip()
+                    # Stop at CB NAME (the next section)
+                    if 'CB NAME' in line_val.upper():
+                        break
+                    # Skip DECLARANT header but continue collecting address lines
+                    if line_val.upper() == 'DECLARANT':
+                        continue
+                    # Skip section prefixes
+                    if line_val.upper().startswith(('1.', '2.', '3.', '4.', 'B.', 'C.')):
+                        continue
+                    # Skip section headers
+                    if line_val.upper() in ['AEO', 'UCR', 'AD CODE']:
+                        break
+                    if line_val:
+                        importer_lines.append(line_val)
+            boe.part1_declarant.importer_name = ' '.join(importer_lines)
+
+        # Extract CB Name
+        cb_name_idx = find_line_index(page_lines, "CB NAME")
+        if cb_name_idx >= 0:
+            cb_name_line = page_lines[cb_name_idx].get('content', '') if isinstance(page_lines[cb_name_idx], dict) else page_lines[cb_name_idx]
+            cb_name_line = str(cb_name_line)
+            # CB NAME might be on the same line (e.g., "2.CB NAME CORE LOGISTICS")
+            if 'CB NAME' in cb_name_line:
+                parts = cb_name_line.split('CB NAME')
+                if len(parts) > 1:
+                    boe.part1_declarant.cb_name = parts[1].strip()
+                elif cb_name_idx + 1 < len(page_lines):
+                    next_val = page_lines[cb_name_idx + 1].get('content', '') if isinstance(page_lines[cb_name_idx + 1], dict) else page_lines[cb_name_idx + 1]
+                    boe.part1_declarant.cb_name = str(next_val).strip()
+
+        # Extract AD Code
+        ad_code_idx = find_line_index(page_lines, "AD CODE")
+        if ad_code_idx >= 0 and ad_code_idx + 1 < len(page_lines):
+            ad_code_val = page_lines[ad_code_idx + 1].get('content', '') if isinstance(page_lines[ad_code_idx + 1], dict) else page_lines[ad_code_idx + 1]
+            boe.part1_declarant.ad_code = str(ad_code_val).strip()
+
+        # Extract Bond Details (Part I, Section E)
+        # Structure: Line 138: 1.BOND NO., 139: 2.PORT, 140: bond_no, 141: port
+        #            142: 3.BOND CD 4.DEBT AMT 5.BG AMT, 143: bond_cd, 144: debt_amt, 145: bg_amt
+        bond_no_idx = find_line_index(page_lines, "BOND NO")
+        if bond_no_idx >= 0:
+            # Bond number is at bond_no_idx + 2 (skip "2.PORT")
+            if bond_no_idx + 2 < len(page_lines):
+                val = page_lines[bond_no_idx + 2].get('content', '') if isinstance(page_lines[bond_no_idx + 2], dict) else page_lines[bond_no_idx + 2]
+                val = str(val).strip()
+                if val and val.isdigit() and len(val) >= 8:
+                    boe.part1_bond.bond_no = val
+
+            # Port is at bond_no_idx + 3
+            if bond_no_idx + 3 < len(page_lines):
+                val = page_lines[bond_no_idx + 3].get('content', '') if isinstance(page_lines[bond_no_idx + 3], dict) else page_lines[bond_no_idx + 3]
+                val = str(val).strip()
+                if val and len(val) >= 5 and val.startswith('IN'):
+                    boe.part1_bond.port = val
+
+            # Bond CD line is at bond_no_idx + 4, values follow at +5, +6, +7
+            if bond_no_idx + 5 < len(page_lines):
+                val = page_lines[bond_no_idx + 5].get('content', '') if isinstance(page_lines[bond_no_idx + 5], dict) else page_lines[bond_no_idx + 5]
+                val = str(val).strip()
+                if val and len(val) <= 3:
+                    boe.part1_bond.bond_code = val
+
+            if bond_no_idx + 6 < len(page_lines):
+                val = page_lines[bond_no_idx + 6].get('content', '') if isinstance(page_lines[bond_no_idx + 6], dict) else page_lines[bond_no_idx + 6]
+                boe.part1_bond.debt_amt = parse_float(val)
+
+            if bond_no_idx + 7 < len(page_lines):
+                val = page_lines[bond_no_idx + 7].get('content', '') if isinstance(page_lines[bond_no_idx + 7], dict) else page_lines[bond_no_idx + 7]
+                boe.part1_bond.bg_amt = parse_float(val)
+
+        # Extract INV/ITEM/CONT counts from lines (fixed structure)
+        # Structure: Line 22-25: TYPE, INV, ITEM, CONT (headers)
+        #            Line 26-29: Nos, 1, 30, 0 (values)
+        # Need to find the exact "TYPE" line (not "BE Type" or "GSTIN/TYPE")
+        type_idx = -1
+        for i, line in enumerate(page_lines):
+            content = str(line.get('content', '') if isinstance(line, dict) else line).strip()
+            if content == "TYPE":
+                type_idx = i
+                break
+
+        if type_idx >= 0:
+            # Find the "Nos" line to get correct values
+            for offset in range(1, 6):
+                if type_idx + offset < len(page_lines):
+                    line_content = page_lines[type_idx + offset].get('content', '') if isinstance(page_lines[type_idx + offset], dict) else page_lines[type_idx + offset]
+                    if str(line_content).strip() == "Nos":
+                        # Next 3 lines are INV, ITEM, CONT values
+                        if type_idx + offset + 1 < len(page_lines):
+                            inv_val = page_lines[type_idx + offset + 1].get('content', '') if isinstance(page_lines[type_idx + offset + 1], dict) else page_lines[type_idx + offset + 1]
+                            boe.header.inv_count = parse_int(inv_val)
+                        if type_idx + offset + 2 < len(page_lines):
+                            item_val = page_lines[type_idx + offset + 2].get('content', '') if isinstance(page_lines[type_idx + offset + 2], dict) else page_lines[type_idx + offset + 2]
+                            boe.header.item_count = parse_int(item_val)
+                        if type_idx + offset + 3 < len(page_lines):
+                            cont_val = page_lines[type_idx + offset + 3].get('content', '') if isinstance(page_lines[type_idx + offset + 3], dict) else page_lines[type_idx + offset + 3]
+                            boe.header.cont_count = parse_int(cont_val)
+                        break
+
+        # Extract Invoice Summary (Part I, Section I)
+        # Structure: Line N: 2.INVOICE NO, N+1: invoice_no, N+2: 3.INV. AMT, N+3: amount
+        inv_no_idx = find_line_index(page_lines, "INVOICE NO")
+        if inv_no_idx >= 0:
+            invoice_summary = Part1InvoiceSummary(sno=1)
+
+            # Invoice number is next line
+            if inv_no_idx + 1 < len(page_lines):
+                inv_no = page_lines[inv_no_idx + 1].get('content', '') if isinstance(page_lines[inv_no_idx + 1], dict) else page_lines[inv_no_idx + 1]
+                invoice_summary.invoice_no = str(inv_no).strip()
+
+            # Find INV. AMT
+            inv_amt_idx = find_line_index(page_lines, "INV. AMT")
+            if inv_amt_idx >= 0 and inv_amt_idx + 1 < len(page_lines):
+                inv_amt = page_lines[inv_amt_idx + 1].get('content', '') if isinstance(page_lines[inv_amt_idx + 1], dict) else page_lines[inv_amt_idx + 1]
+                invoice_summary.inv_amt = parse_float(inv_amt)
+
+            # Find currency (4.CUR)
+            cur_idx = find_line_index(page_lines, "CUR")
+            if cur_idx >= 0 and cur_idx + 1 < len(page_lines):
+                cur_val = page_lines[cur_idx + 1].get('content', '') if isinstance(page_lines[cur_idx + 1], dict) else page_lines[cur_idx + 1]
+                cur_val = str(cur_val).strip()
+                # Currency codes are typically 3 letters
+                if len(cur_val) == 3 and cur_val.isalpha():
+                    invoice_summary.currency = cur_val
+
+            if invoice_summary.invoice_no:
+                boe.part1_invoice_summary.append(invoice_summary)
+
+    # Parse Duty Summary - use raw_table from ocr_data if available
+    duty_raw = ocr_data.get("part1_duty_summary", {}).get("raw_table", [])
+    if duty_raw and len(duty_raw) >= 4:
+        # Row 0: headers (BCD, ACD, SWS, NCCD, ADD, CVD, IGST, G.CESS, TOT.ASS VAL)
+        # Row 1: values for row 0 headers
+        # Row 2: headers (SG, SAED, GSIA, TTA, HEALTH, TOTAL DUTY, INT, PNLTY, FINE, TOT.AMOUNT)
+        # Row 3: values for row 2 headers
+        row1 = duty_raw[1] if len(duty_raw) > 1 else []
+        row3 = duty_raw[3] if len(duty_raw) > 3 else []
+
+        # Parse first row of values (BCD through TOT.ASS VAL)
+        boe.part1_duty_summary.bcd = parse_float(row1[1]) if len(row1) > 1 else 0
+        boe.part1_duty_summary.acd = parse_float(row1[2]) if len(row1) > 2 else 0
+        boe.part1_duty_summary.sws = parse_float(row1[3]) if len(row1) > 3 else 0
+        boe.part1_duty_summary.nccd = parse_float(row1[4]) if len(row1) > 4 else 0
+        boe.part1_duty_summary.add_duty = parse_float(row1[5]) if len(row1) > 5 else 0
+        boe.part1_duty_summary.cvd = parse_float(row1[6]) if len(row1) > 6 else 0
+        boe.part1_duty_summary.igst = parse_float(row1[7]) if len(row1) > 7 else 0
+        boe.part1_duty_summary.g_cess = parse_float(row1[9]) if len(row1) > 9 else 0
+        boe.part1_duty_summary.tot_ass_val = parse_float(row1[10]) if len(row1) > 10 else 0
+
+        # Parse second row of values (SG through TOT.AMOUNT)
+        boe.part1_duty_summary.sg = parse_float(row3[1]) if len(row3) > 1 else 0
+        boe.part1_duty_summary.saed = parse_float(row3[2]) if len(row3) > 2 else 0
+        boe.part1_duty_summary.gsia = parse_float(row3[3]) if len(row3) > 3 else 0
+        boe.part1_duty_summary.tta = parse_float(row3[4]) if len(row3) > 4 else 0
+        boe.part1_duty_summary.health = parse_float(row3[5]) if len(row3) > 5 else 0
+        boe.part1_duty_summary.total_duty = parse_float(row3[6]) if len(row3) > 6 else 0
+        boe.part1_duty_summary.interest = parse_float(row3[7]) if len(row3) > 7 else 0
+        boe.part1_duty_summary.penalty = parse_float(row3[8]) if len(row3) > 8 else 0
+        boe.part1_duty_summary.fine = parse_float(row3[9]) if len(row3) > 9 else 0
+        boe.part1_duty_summary.tot_amount = parse_float(row3[10]) if len(row3) > 10 else 0
+    else:
+        # Fallback to table parsing
+        duty_table = find_table_by_headers(tables, ["BCD", "ACD"], page=1)
+        if duty_table:
+            data = duty_table.get("data", [])
+            # Find the row with numeric values
+            for row in data:
+                values = [parse_float(c) for c in row]
+                if sum(values) > 0:
+                    # Map values to duty fields based on position
+                    if len(values) >= 10:
+                        boe.part1_duty_summary.bcd = values[0] if len(values) > 0 else 0
+                        boe.part1_duty_summary.acd = values[1] if len(values) > 1 else 0
+                        boe.part1_duty_summary.sws = values[2] if len(values) > 2 else 0
+                        boe.part1_duty_summary.nccd = values[3] if len(values) > 3 else 0
+                        boe.part1_duty_summary.add_duty = values[4] if len(values) > 4 else 0
+                        boe.part1_duty_summary.cvd = values[5] if len(values) > 5 else 0
+                        boe.part1_duty_summary.igst = values[6] if len(values) > 6 else 0
+                        boe.part1_duty_summary.g_cess = values[7] if len(values) > 7 else 0
+                        boe.part1_duty_summary.tot_ass_val = values[8] if len(values) > 8 else 0
+                        boe.part1_duty_summary.total_duty = values[9] if len(values) > 9 else 0
 
     # Parse Payment section (F. PAYMENT)
     payment_table = find_table_by_headers(tables, ["SR NO", "CHALLAN"], page=1)

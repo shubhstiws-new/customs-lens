@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import IntegrityError
 
 from src.database.models_sqlite import (
-    Base, Document, Status, Declarant, DutySummary, Manifest,
+    Base, Document, Status, Declarant, DutySummary, Manifest, Bond, InvoiceSummary,
     Payment, Processing, Invoice, Item, ItemDuty, Licence, Compliance
 )
 from .transformers import parse_date, parse_number, clean_text, safe_int
@@ -165,6 +165,39 @@ class BoEDatabaseManager:
         )
         session.add(manifest)
         logger.info(f"Inserted manifest for: {document_id}")
+
+    def insert_bond(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 1 Bond data"""
+        bond_data = data.get("part1_bond", {})
+        if not any(bond_data.values()):
+            return
+
+        bond = Bond(
+            document_id=document_id,
+            bond_no=clean_text(bond_data.get("bond_no")),
+            port=clean_text(bond_data.get("port")),
+            bond_code=clean_text(bond_data.get("bond_code")),
+            debt_amt=parse_number(bond_data.get("debt_amt")),
+            bg_amt=parse_number(bond_data.get("bg_amt")),
+        )
+        session.add(bond)
+        logger.info(f"Inserted bond for: {document_id}")
+
+    def insert_invoice_summary(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 1 Invoice Summary records"""
+        summaries = data.get("part1_invoice_summary", [])
+        for sum_data in summaries:
+            inv_summary = InvoiceSummary(
+                document_id=document_id,
+                sno=safe_int(sum_data.get("sno")),
+                invoice_no=clean_text(sum_data.get("invoice_no")),
+                inv_amt=parse_number(sum_data.get("inv_amt")),
+                currency=clean_text(sum_data.get("currency")),
+            )
+            session.add(inv_summary)
+
+        if summaries:
+            logger.info(f"Inserted {len(summaries)} invoice summaries for: {document_id}")
 
     def insert_payments(self, session: Session, document_id: str, data: Dict[str, Any]):
         """Insert Part 1 Payment records"""
@@ -343,6 +376,7 @@ class BoEDatabaseManager:
             self.insert_declarant(session, document_id, data)
             self.insert_duty_summary(session, document_id, data)
             self.insert_manifest(session, document_id, data)
+            self.insert_bond(session, document_id, data)
             self.insert_payments(session, document_id, data)
             self.insert_processing(session, document_id, data)
             self.insert_invoices(session, document_id, data)

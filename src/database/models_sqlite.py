@@ -48,6 +48,8 @@ class Document(Base):
     declarant: Mapped[Optional["Declarant"]] = relationship(back_populates="document", uselist=False, cascade="all, delete-orphan")
     duty_summary: Mapped[Optional["DutySummary"]] = relationship(back_populates="document", uselist=False, cascade="all, delete-orphan")
     manifest: Mapped[Optional["Manifest"]] = relationship(back_populates="document", uselist=False, cascade="all, delete-orphan")
+    bond: Mapped[Optional["Bond"]] = relationship(back_populates="document", uselist=False, cascade="all, delete-orphan")
+    invoice_summaries: Mapped[List["InvoiceSummary"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     payments: Mapped[List["Payment"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     processing_events: Mapped[List["Processing"]] = relationship(back_populates="document", cascade="all, delete-orphan")
     invoices: Mapped[List["Invoice"]] = relationship(back_populates="document", cascade="all, delete-orphan")
@@ -161,6 +163,35 @@ class Payment(Base):
     amount: Mapped[Optional[float]] = mapped_column(Float)
 
     document: Mapped["Document"] = relationship(back_populates="payments")
+
+
+class Bond(Base):
+    """Part I - Section E: Bond Details"""
+    __tablename__ = "part1_bond"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    document_id: Mapped[str] = mapped_column(String(50), ForeignKey("documents.document_id", ondelete="CASCADE"))
+    bond_no: Mapped[Optional[str]] = mapped_column(String(30))
+    port: Mapped[Optional[str]] = mapped_column(String(20))
+    bond_code: Mapped[Optional[str]] = mapped_column(String(10))
+    debt_amt: Mapped[Optional[float]] = mapped_column(Float)
+    bg_amt: Mapped[Optional[float]] = mapped_column(Float)
+
+    document: Mapped["Document"] = relationship(back_populates="bond")
+
+
+class InvoiceSummary(Base):
+    """Part I - Section I: Invoice Details Summary"""
+    __tablename__ = "part1_invoice_summary"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    document_id: Mapped[str] = mapped_column(String(50), ForeignKey("documents.document_id", ondelete="CASCADE"))
+    sno: Mapped[Optional[int]] = mapped_column(Integer)
+    invoice_no: Mapped[Optional[str]] = mapped_column(String(50))
+    inv_amt: Mapped[Optional[float]] = mapped_column(Float)
+    currency: Mapped[Optional[str]] = mapped_column(String(10))
+
+    document: Mapped["Document"] = relationship(back_populates="invoice_summaries")
 
 
 class Processing(Base):
