@@ -210,23 +210,195 @@ class Part4Licence:
 
 
 @dataclass
+class Part1Warehouse:
+    """Part I - Section G: Warehouse Details"""
+    wh_code: str = ""
+    wh_name: str = ""
+    wh_address: str = ""
+    wbe_no: str = ""
+    wbe_date: str = ""
+    wbe_site: str = ""
+
+
+@dataclass
 class Part1Container:
-    """Part I - Section G: Container Details"""
-    container_number: str = ""
-    truck_number: str = ""
-    seal_number: str = ""
+    """Part I - Section J: Container Details"""
+    sno: int = 0
+    container_no: str = ""
+    seal_no: str = ""
+    container_size: str = ""
+    container_type: str = ""
     fcl_lcl: str = ""
+
+
+@dataclass
+class Part2TransactingParties:
+    """Part II - Section B: Transacting Parties"""
+    invoice_sno: int = 0
+    buyer_name: str = ""
+    buyer_address: str = ""
+    seller_name: str = ""
+    seller_address: str = ""
+    supplier_name: str = ""
+    supplier_address: str = ""
+    third_party_name: str = ""
+    third_party_address: str = ""
+
+
+@dataclass
+class Part2Valuation:
+    """Part II - Section C: Valuation"""
+    invoice_sno: int = 0
+    valuation_method: str = ""
+    related: str = ""
+    svb_ch: str = ""
+    svb_no: str = ""
+    svb_date: str = ""
+    loa: str = ""
+
+
+@dataclass
+class Part2CostServices:
+    """Part II - Section D: Cost & Services"""
+    invoice_sno: int = 0
+    freight: float = 0.0
+    insurance: float = 0.0
+    loading: float = 0.0
+    commission: float = 0.0
+    misc_charge: float = 0.0
+    pay_terms: str = ""
+    hss: str = ""
+    assessed_value: float = 0.0
+
+
+@dataclass
+class Part4SVB:
+    """Part IV - Section A: SVB Details"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    svb_no: str = ""
+    svb_date: str = ""
+    svb_load_on_duty: float = 0.0
+    svb_load_on_value: float = 0.0
+
+
+@dataclass
+class Part4PreviousBE:
+    """Part IV - Section B: Previous BEs"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    prev_be_no: str = ""
+    prev_be_date: str = ""
+    prev_port: str = ""
+    prev_qty: float = 0.0
+    prev_uqc: str = ""
+
+
+@dataclass
+class Part4Reimport:
+    """Part IV - Section C: Re-import After Export"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    sb_no: str = ""
+    sb_date: str = ""
+    sb_port: str = ""
+    export_qty: float = 0.0
+    export_uqc: str = ""
+
+
+@dataclass
+class Part4Manufacturer:
+    """Part IV - Section D: Manufacturer Details"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    manufacturer_name: str = ""
+    manufacturer_address: str = ""
+    manufacturer_country: str = ""
+
+
+@dataclass
+class Part4Accessory:
+    """Part IV - Section E: Accessory Status"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    accessory_type: str = ""
+    accessory_desc: str = ""
+    accessory_value: float = 0.0
 
 
 @dataclass
 class Part4Certificate:
     """Part IV - Section G: Certificate Details"""
-    certificate_number: str = ""
-    certificate_date: str = ""
-    certificate_type: str = ""
-    prc_level: str = ""
-    iec: str = ""
-    branch_slno: str = ""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    cert_type: str = ""
+    cert_no: str = ""
+    cert_date: str = ""
+    issuing_authority: str = ""
+
+
+@dataclass
+class Part4HSS:
+    """Part IV - Section H: HSS Details"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    hss_code: str = ""
+    hss_desc: str = ""
+    hss_qty: float = 0.0
+    hss_uqc: str = ""
+
+
+@dataclass
+class Part4SWDeclaration:
+    """Part IV - Section I: Single Window Declaration"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    info_type: str = ""
+    qualifier: str = ""
+    info_code: str = ""
+    info_text: str = ""
+    info_msr: float = 0.0
+    uqc: str = ""
+
+
+@dataclass
+class Part4SWConstituent:
+    """Part IV - Section J: SW Constituents"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    constituent_code: str = ""
+    constituent_name: str = ""
+    constituent_pct: float = 0.0
+
+
+@dataclass
+class Part4SWControl:
+    """Part IV - Section K: SW Control"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    control_code: str = ""
+    control_value: str = ""
+
+
+@dataclass
+class Part4SupportingDoc:
+    """Part IV - Section L: Supporting Documents"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    doc_type: str = ""
+    doc_no: str = ""
+    doc_date: str = ""
+    icegate_id: str = ""
+    irn: str = ""
+
+
+@dataclass
+class Part4Container:
+    """Part IV - Section M: Container Details"""
+    invoice_sno: int = 0
+    item_sno: int = 0
+    container_no: str = ""
+    seal_no: str = ""
 
 
 @dataclass
@@ -234,50 +406,130 @@ class Part5Compliance:
     """Part V - Compliance Details"""
     examination_order: str = ""
     examination_instructions: str = ""
+    pga_instructions: str = ""
     compulsory_compliance: str = ""
+    ac_remarks: str = ""
+    examination_report: str = ""
+    superintendent_comments: str = ""
     ooc_no: str = ""
     ooc_date: str = ""
 
 
 @dataclass
+class Part6Declaration:
+    """Part VI - Section A: Declaration Statement"""
+    declaration_text: str = ""
+    declaration_date: str = ""
+    declaration_place: str = ""
+
+
+@dataclass
+class Part6Signatory:
+    """Part VI - Section B: Authorized Signatory"""
+    signatory_name: str = ""
+    signatory_designation: str = ""
+    signatory_date: str = ""
+
+
+@dataclass
 class BillOfEntry:
     """Complete Bill of Entry Structure"""
+    # Header
     header: BoEHeader = field(default_factory=BoEHeader)
+
+    # Part I - Summary
     part1_status: Part1Status = field(default_factory=Part1Status)
     part1_declarant: Part1Declarant = field(default_factory=Part1Declarant)
     part1_duty_summary: Part1DutySummary = field(default_factory=Part1DutySummary)
     part1_manifest: Part1Manifest = field(default_factory=Part1Manifest)
     part1_bond: Part1Bond = field(default_factory=Part1Bond)
+    part1_warehouse: Part1Warehouse = field(default_factory=Part1Warehouse)
     part1_invoice_summary: list = field(default_factory=list)
     part1_payments: list = field(default_factory=list)
     part1_processing: list = field(default_factory=list)
     part1_containers: list = field(default_factory=list)
+
+    # Part II - Invoice & Valuation
     part2_invoices: list = field(default_factory=list)
     part2_items: list = field(default_factory=list)
+    part2_transacting_parties: list = field(default_factory=list)
+    part2_valuations: list = field(default_factory=list)
+    part2_cost_services: list = field(default_factory=list)
+
+    # Part III - Duties
     part3_item_duties: list = field(default_factory=list)
+
+    # Part IV - Additional Details
     part4_licences: list = field(default_factory=list)
+    part4_svb_details: list = field(default_factory=list)
+    part4_previous_bes: list = field(default_factory=list)
+    part4_reimports: list = field(default_factory=list)
+    part4_manufacturers: list = field(default_factory=list)
+    part4_accessories: list = field(default_factory=list)
     part4_certificates: list = field(default_factory=list)
+    part4_hss_details: list = field(default_factory=list)
+    part4_sw_declarations: list = field(default_factory=list)
+    part4_sw_constituents: list = field(default_factory=list)
+    part4_sw_controls: list = field(default_factory=list)
+    part4_supporting_docs: list = field(default_factory=list)
+    part4_containers: list = field(default_factory=list)
+
+    # Part V - Compliance
     part5_compliance: Part5Compliance = field(default_factory=Part5Compliance)
+
+    # Part VI - Declaration
+    part6_declaration: Part6Declaration = field(default_factory=Part6Declaration)
+    part6_signatory: Part6Signatory = field(default_factory=Part6Signatory)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         return {
+            # Header
             "header": asdict(self.header),
+
+            # Part I
             "part1_status": asdict(self.part1_status),
             "part1_declarant": asdict(self.part1_declarant),
             "part1_duty_summary": asdict(self.part1_duty_summary),
             "part1_manifest": asdict(self.part1_manifest),
             "part1_bond": asdict(self.part1_bond),
+            "part1_warehouse": asdict(self.part1_warehouse),
             "part1_invoice_summary": [asdict(i) for i in self.part1_invoice_summary],
             "part1_payments": [asdict(p) for p in self.part1_payments],
             "part1_processing": [asdict(p) for p in self.part1_processing],
             "part1_containers": [asdict(c) for c in self.part1_containers],
+
+            # Part II
             "part2_invoices": [asdict(i) for i in self.part2_invoices],
             "part2_items": [asdict(i) for i in self.part2_items],
+            "part2_transacting_parties": [asdict(t) for t in self.part2_transacting_parties],
+            "part2_valuations": [asdict(v) for v in self.part2_valuations],
+            "part2_cost_services": [asdict(c) for c in self.part2_cost_services],
+
+            # Part III
             "part3_item_duties": [asdict(d) for d in self.part3_item_duties],
+
+            # Part IV
             "part4_licences": [asdict(l) for l in self.part4_licences],
+            "part4_svb_details": [asdict(s) for s in self.part4_svb_details],
+            "part4_previous_bes": [asdict(p) for p in self.part4_previous_bes],
+            "part4_reimports": [asdict(r) for r in self.part4_reimports],
+            "part4_manufacturers": [asdict(m) for m in self.part4_manufacturers],
+            "part4_accessories": [asdict(a) for a in self.part4_accessories],
             "part4_certificates": [asdict(c) for c in self.part4_certificates],
+            "part4_hss_details": [asdict(h) for h in self.part4_hss_details],
+            "part4_sw_declarations": [asdict(s) for s in self.part4_sw_declarations],
+            "part4_sw_constituents": [asdict(s) for s in self.part4_sw_constituents],
+            "part4_sw_controls": [asdict(s) for s in self.part4_sw_controls],
+            "part4_supporting_docs": [asdict(s) for s in self.part4_supporting_docs],
+            "part4_containers": [asdict(c) for c in self.part4_containers],
+
+            # Part V
             "part5_compliance": asdict(self.part5_compliance),
+
+            # Part VI
+            "part6_declaration": asdict(self.part6_declaration),
+            "part6_signatory": asdict(self.part6_signatory),
         }
 
 

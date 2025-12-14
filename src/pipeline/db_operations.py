@@ -12,7 +12,16 @@ from sqlalchemy.exc import IntegrityError
 
 from src.database.models_sqlite import (
     Base, Document, Status, Declarant, DutySummary, Manifest, Bond, InvoiceSummary,
-    Payment, Processing, Invoice, Item, ItemDuty, Licence, Compliance
+    Payment, Processing, Invoice, Item, ItemDuty, Licence, Compliance,
+    # New Part I tables
+    Warehouse, Container,
+    # New Part II tables
+    TransactingParties, Valuation, CostServices,
+    # New Part IV tables
+    SVBDetails, PreviousBE, Reimport, Manufacturer, Accessory, Certificate,
+    HSSDetails, SWDeclaration, SWConstituent, SWControl, SupportingDoc, Part4Container,
+    # New Part VI tables
+    Declaration, AuthorizedSignatory
 )
 from .transformers import parse_date, parse_number, clean_text, safe_int
 
@@ -343,12 +352,365 @@ class BoEDatabaseManager:
             document_id=document_id,
             examination_order=clean_text(comp_data.get("examination_order")),
             examination_instructions=clean_text(comp_data.get("examination_instructions")),
+            pga_instructions=clean_text(comp_data.get("pga_instructions")),
             compulsory_compliance=clean_text(comp_data.get("compulsory_compliance")),
+            ac_remarks=clean_text(comp_data.get("ac_remarks")),
+            examination_report=clean_text(comp_data.get("examination_report")),
+            superintendent_comments=clean_text(comp_data.get("superintendent_comments")),
             ooc_no=clean_text(comp_data.get("ooc_no")),
             ooc_date=parse_date(comp_data.get("ooc_date")),
         )
         session.add(compliance)
         logger.info(f"Inserted compliance for: {document_id}")
+
+    # ========== Part I - Additional Sections ==========
+
+    def insert_warehouse(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 1 Warehouse data"""
+        wh_data = data.get("part1_warehouse", {})
+        if not any(wh_data.values()):
+            return
+
+        warehouse = Warehouse(
+            document_id=document_id,
+            wh_code=clean_text(wh_data.get("wh_code")),
+            wh_name=clean_text(wh_data.get("wh_name")),
+            wh_address=clean_text(wh_data.get("wh_address")),
+            wbe_no=clean_text(wh_data.get("wbe_no")),
+            wbe_date=parse_date(wh_data.get("wbe_date")),
+            wbe_site=clean_text(wh_data.get("wbe_site")),
+        )
+        session.add(warehouse)
+        logger.info(f"Inserted warehouse for: {document_id}")
+
+    def insert_containers(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 1 Container records"""
+        containers = data.get("part1_containers", [])
+        for cont_data in containers:
+            container = Container(
+                document_id=document_id,
+                sno=safe_int(cont_data.get("sno")),
+                container_no=clean_text(cont_data.get("container_no")),
+                seal_no=clean_text(cont_data.get("seal_no")),
+                container_size=clean_text(cont_data.get("container_size")),
+                container_type=clean_text(cont_data.get("container_type")),
+                fcl_lcl=clean_text(cont_data.get("fcl_lcl")),
+            )
+            session.add(container)
+
+        if containers:
+            logger.info(f"Inserted {len(containers)} containers for: {document_id}")
+
+    # ========== Part II - Additional Sections ==========
+
+    def insert_transacting_parties(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 2 Transacting Parties records"""
+        parties = data.get("part2_transacting_parties", [])
+        for party_data in parties:
+            party = TransactingParties(
+                document_id=document_id,
+                invoice_sno=safe_int(party_data.get("invoice_sno")),
+                buyer_name=clean_text(party_data.get("buyer_name")),
+                buyer_address=clean_text(party_data.get("buyer_address")),
+                seller_name=clean_text(party_data.get("seller_name")),
+                seller_address=clean_text(party_data.get("seller_address")),
+                supplier_name=clean_text(party_data.get("supplier_name")),
+                supplier_address=clean_text(party_data.get("supplier_address")),
+                third_party_name=clean_text(party_data.get("third_party_name")),
+                third_party_address=clean_text(party_data.get("third_party_address")),
+            )
+            session.add(party)
+
+        if parties:
+            logger.info(f"Inserted {len(parties)} transacting parties for: {document_id}")
+
+    def insert_valuations(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 2 Valuation records"""
+        valuations = data.get("part2_valuations", [])
+        for val_data in valuations:
+            valuation = Valuation(
+                document_id=document_id,
+                invoice_sno=safe_int(val_data.get("invoice_sno")),
+                valuation_method=clean_text(val_data.get("valuation_method")),
+                related=clean_text(val_data.get("related")),
+                svb_ch=clean_text(val_data.get("svb_ch")),
+                svb_no=clean_text(val_data.get("svb_no")),
+                svb_date=parse_date(val_data.get("svb_date")),
+                loa=clean_text(val_data.get("loa")),
+            )
+            session.add(valuation)
+
+        if valuations:
+            logger.info(f"Inserted {len(valuations)} valuations for: {document_id}")
+
+    def insert_cost_services(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 2 Cost & Services records"""
+        costs = data.get("part2_cost_services", [])
+        for cost_data in costs:
+            cost = CostServices(
+                document_id=document_id,
+                invoice_sno=safe_int(cost_data.get("invoice_sno")),
+                freight=parse_number(cost_data.get("freight")),
+                insurance=parse_number(cost_data.get("insurance")),
+                loading=parse_number(cost_data.get("loading")),
+                commission=parse_number(cost_data.get("commission")),
+                misc_charge=parse_number(cost_data.get("misc_charge")),
+                pay_terms=clean_text(cost_data.get("pay_terms")),
+                hss=clean_text(cost_data.get("hss")),
+                assessed_value=parse_number(cost_data.get("assessed_value")),
+            )
+            session.add(cost)
+
+        if costs:
+            logger.info(f"Inserted {len(costs)} cost services for: {document_id}")
+
+    # ========== Part IV - Additional Sections ==========
+
+    def insert_svb_details(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 SVB Details records"""
+        svbs = data.get("part4_svb_details", [])
+        for svb_data in svbs:
+            svb = SVBDetails(
+                document_id=document_id,
+                invoice_sno=safe_int(svb_data.get("invoice_sno")),
+                item_sno=safe_int(svb_data.get("item_sno")),
+                svb_no=clean_text(svb_data.get("svb_no")),
+                svb_date=parse_date(svb_data.get("svb_date")),
+                svb_load_on_duty=parse_number(svb_data.get("svb_load_on_duty")),
+                svb_load_on_value=parse_number(svb_data.get("svb_load_on_value")),
+            )
+            session.add(svb)
+
+        if svbs:
+            logger.info(f"Inserted {len(svbs)} SVB details for: {document_id}")
+
+    def insert_previous_bes(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 Previous BE records"""
+        prev_bes = data.get("part4_previous_bes", [])
+        for prev_data in prev_bes:
+            prev_be = PreviousBE(
+                document_id=document_id,
+                invoice_sno=safe_int(prev_data.get("invoice_sno")),
+                item_sno=safe_int(prev_data.get("item_sno")),
+                prev_be_no=clean_text(prev_data.get("prev_be_no")),
+                prev_be_date=parse_date(prev_data.get("prev_be_date")),
+                prev_port=clean_text(prev_data.get("prev_port")),
+                prev_qty=parse_number(prev_data.get("prev_qty")),
+                prev_uqc=clean_text(prev_data.get("prev_uqc")),
+            )
+            session.add(prev_be)
+
+        if prev_bes:
+            logger.info(f"Inserted {len(prev_bes)} previous BEs for: {document_id}")
+
+    def insert_reimports(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 Reimport records"""
+        reimports = data.get("part4_reimports", [])
+        for reimp_data in reimports:
+            reimport = Reimport(
+                document_id=document_id,
+                invoice_sno=safe_int(reimp_data.get("invoice_sno")),
+                item_sno=safe_int(reimp_data.get("item_sno")),
+                sb_no=clean_text(reimp_data.get("sb_no")),
+                sb_date=parse_date(reimp_data.get("sb_date")),
+                sb_port=clean_text(reimp_data.get("sb_port")),
+                export_qty=parse_number(reimp_data.get("export_qty")),
+                export_uqc=clean_text(reimp_data.get("export_uqc")),
+            )
+            session.add(reimport)
+
+        if reimports:
+            logger.info(f"Inserted {len(reimports)} reimports for: {document_id}")
+
+    def insert_manufacturers(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 Manufacturer records"""
+        manufacturers = data.get("part4_manufacturers", [])
+        for mfr_data in manufacturers:
+            manufacturer = Manufacturer(
+                document_id=document_id,
+                invoice_sno=safe_int(mfr_data.get("invoice_sno")),
+                item_sno=safe_int(mfr_data.get("item_sno")),
+                manufacturer_name=clean_text(mfr_data.get("manufacturer_name")),
+                manufacturer_address=clean_text(mfr_data.get("manufacturer_address")),
+                manufacturer_country=clean_text(mfr_data.get("manufacturer_country")),
+            )
+            session.add(manufacturer)
+
+        if manufacturers:
+            logger.info(f"Inserted {len(manufacturers)} manufacturers for: {document_id}")
+
+    def insert_accessories(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 Accessory records"""
+        accessories = data.get("part4_accessories", [])
+        for acc_data in accessories:
+            accessory = Accessory(
+                document_id=document_id,
+                invoice_sno=safe_int(acc_data.get("invoice_sno")),
+                item_sno=safe_int(acc_data.get("item_sno")),
+                accessory_type=clean_text(acc_data.get("accessory_type")),
+                accessory_desc=clean_text(acc_data.get("accessory_desc")),
+                accessory_value=parse_number(acc_data.get("accessory_value")),
+            )
+            session.add(accessory)
+
+        if accessories:
+            logger.info(f"Inserted {len(accessories)} accessories for: {document_id}")
+
+    def insert_certificates(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 Certificate records"""
+        certificates = data.get("part4_certificates", [])
+        for cert_data in certificates:
+            certificate = Certificate(
+                document_id=document_id,
+                invoice_sno=safe_int(cert_data.get("invoice_sno")),
+                item_sno=safe_int(cert_data.get("item_sno")),
+                cert_type=clean_text(cert_data.get("cert_type")),
+                cert_no=clean_text(cert_data.get("cert_no")),
+                cert_date=parse_date(cert_data.get("cert_date")),
+                issuing_authority=clean_text(cert_data.get("issuing_authority")),
+            )
+            session.add(certificate)
+
+        if certificates:
+            logger.info(f"Inserted {len(certificates)} certificates for: {document_id}")
+
+    def insert_hss_details(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 HSS Details records"""
+        hss_list = data.get("part4_hss_details", [])
+        for hss_data in hss_list:
+            hss = HSSDetails(
+                document_id=document_id,
+                invoice_sno=safe_int(hss_data.get("invoice_sno")),
+                item_sno=safe_int(hss_data.get("item_sno")),
+                hss_code=clean_text(hss_data.get("hss_code")),
+                hss_desc=clean_text(hss_data.get("hss_desc")),
+                hss_qty=parse_number(hss_data.get("hss_qty")),
+                hss_uqc=clean_text(hss_data.get("hss_uqc")),
+            )
+            session.add(hss)
+
+        if hss_list:
+            logger.info(f"Inserted {len(hss_list)} HSS details for: {document_id}")
+
+    def insert_sw_declarations(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 SW Declaration records"""
+        sw_decls = data.get("part4_sw_declarations", [])
+        for sw_data in sw_decls:
+            sw_decl = SWDeclaration(
+                document_id=document_id,
+                invoice_sno=safe_int(sw_data.get("invoice_sno")),
+                item_sno=safe_int(sw_data.get("item_sno")),
+                info_type=clean_text(sw_data.get("info_type")),
+                qualifier=clean_text(sw_data.get("qualifier")),
+                info_code=clean_text(sw_data.get("info_code")),
+                info_text=clean_text(sw_data.get("info_text")),
+                info_msr=parse_number(sw_data.get("info_msr")),
+                uqc=clean_text(sw_data.get("uqc")),
+            )
+            session.add(sw_decl)
+
+        if sw_decls:
+            logger.info(f"Inserted {len(sw_decls)} SW declarations for: {document_id}")
+
+    def insert_sw_constituents(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 SW Constituent records"""
+        constituents = data.get("part4_sw_constituents", [])
+        for const_data in constituents:
+            constituent = SWConstituent(
+                document_id=document_id,
+                invoice_sno=safe_int(const_data.get("invoice_sno")),
+                item_sno=safe_int(const_data.get("item_sno")),
+                constituent_code=clean_text(const_data.get("constituent_code")),
+                constituent_name=clean_text(const_data.get("constituent_name")),
+                constituent_pct=parse_number(const_data.get("constituent_pct")),
+            )
+            session.add(constituent)
+
+        if constituents:
+            logger.info(f"Inserted {len(constituents)} SW constituents for: {document_id}")
+
+    def insert_sw_controls(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 SW Control records"""
+        controls = data.get("part4_sw_controls", [])
+        for ctrl_data in controls:
+            control = SWControl(
+                document_id=document_id,
+                invoice_sno=safe_int(ctrl_data.get("invoice_sno")),
+                item_sno=safe_int(ctrl_data.get("item_sno")),
+                control_code=clean_text(ctrl_data.get("control_code")),
+                control_value=clean_text(ctrl_data.get("control_value")),
+            )
+            session.add(control)
+
+        if controls:
+            logger.info(f"Inserted {len(controls)} SW controls for: {document_id}")
+
+    def insert_supporting_docs(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 Supporting Document records"""
+        docs = data.get("part4_supporting_docs", [])
+        for doc_data in docs:
+            supporting_doc = SupportingDoc(
+                document_id=document_id,
+                invoice_sno=safe_int(doc_data.get("invoice_sno")),
+                item_sno=safe_int(doc_data.get("item_sno")),
+                doc_type=clean_text(doc_data.get("doc_type")),
+                doc_no=clean_text(doc_data.get("doc_no")),
+                doc_date=parse_date(doc_data.get("doc_date")),
+                icegate_id=clean_text(doc_data.get("icegate_id")),
+                irn=clean_text(doc_data.get("irn")),
+            )
+            session.add(supporting_doc)
+
+        if docs:
+            logger.info(f"Inserted {len(docs)} supporting docs for: {document_id}")
+
+    def insert_part4_containers(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 4 Container records"""
+        containers = data.get("part4_containers", [])
+        for cont_data in containers:
+            container = Part4Container(
+                document_id=document_id,
+                invoice_sno=safe_int(cont_data.get("invoice_sno")),
+                item_sno=safe_int(cont_data.get("item_sno")),
+                container_no=clean_text(cont_data.get("container_no")),
+                seal_no=clean_text(cont_data.get("seal_no")),
+            )
+            session.add(container)
+
+        if containers:
+            logger.info(f"Inserted {len(containers)} Part4 containers for: {document_id}")
+
+    # ========== Part VI - Declaration ==========
+
+    def insert_declaration(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 6 Declaration data"""
+        decl_data = data.get("part6_declaration", {})
+        if not any(decl_data.values()):
+            return
+
+        declaration = Declaration(
+            document_id=document_id,
+            declaration_text=clean_text(decl_data.get("declaration_text")),
+            declaration_date=parse_date(decl_data.get("declaration_date")),
+            declaration_place=clean_text(decl_data.get("declaration_place")),
+        )
+        session.add(declaration)
+        logger.info(f"Inserted declaration for: {document_id}")
+
+    def insert_signatory(self, session: Session, document_id: str, data: Dict[str, Any]):
+        """Insert Part 6 Authorized Signatory data"""
+        sig_data = data.get("part6_signatory", {})
+        if not any(sig_data.values()):
+            return
+
+        signatory = AuthorizedSignatory(
+            document_id=document_id,
+            signatory_name=clean_text(sig_data.get("signatory_name")),
+            signatory_designation=clean_text(sig_data.get("signatory_designation")),
+            signatory_date=parse_date(sig_data.get("signatory_date")),
+        )
+        session.add(signatory)
+        logger.info(f"Inserted signatory for: {document_id}")
 
     def insert_full_document(self, data: Dict[str, Any], skip_existing: bool = True) -> bool:
         """
@@ -370,20 +732,50 @@ class BoEDatabaseManager:
                 logger.warning(f"Document {document_id} already exists, skipping")
                 return False
 
-            # Insert all components
+            # Insert all components - Part I
             doc = self.insert_document(session, data)
             self.insert_status(session, document_id, data)
             self.insert_declarant(session, document_id, data)
             self.insert_duty_summary(session, document_id, data)
             self.insert_manifest(session, document_id, data)
             self.insert_bond(session, document_id, data)
+            self.insert_warehouse(session, document_id, data)
+            self.insert_invoice_summary(session, document_id, data)
+            self.insert_containers(session, document_id, data)
             self.insert_payments(session, document_id, data)
             self.insert_processing(session, document_id, data)
+
+            # Part II
             self.insert_invoices(session, document_id, data)
             self.insert_items(session, document_id, data)
+            self.insert_transacting_parties(session, document_id, data)
+            self.insert_valuations(session, document_id, data)
+            self.insert_cost_services(session, document_id, data)
+
+            # Part III
             self.insert_item_duties(session, document_id, data)
+
+            # Part IV
             self.insert_licences(session, document_id, data)
+            self.insert_svb_details(session, document_id, data)
+            self.insert_previous_bes(session, document_id, data)
+            self.insert_reimports(session, document_id, data)
+            self.insert_manufacturers(session, document_id, data)
+            self.insert_accessories(session, document_id, data)
+            self.insert_certificates(session, document_id, data)
+            self.insert_hss_details(session, document_id, data)
+            self.insert_sw_declarations(session, document_id, data)
+            self.insert_sw_constituents(session, document_id, data)
+            self.insert_sw_controls(session, document_id, data)
+            self.insert_supporting_docs(session, document_id, data)
+            self.insert_part4_containers(session, document_id, data)
+
+            # Part V
             self.insert_compliance(session, document_id, data)
+
+            # Part VI
+            self.insert_declaration(session, document_id, data)
+            self.insert_signatory(session, document_id, data)
 
             # Commit transaction
             session.commit()
