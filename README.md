@@ -1,137 +1,108 @@
-# Bill of Entry OCR Data Extraction System
+# CustomsLens
 
-An end-to-end system for extracting structured data from Indian Customs Bill of Entry (BoE) PDF documents using Azure Document Intelligence OCR and storing in a database.
+**Structured data extraction from Indian Customs Bills of Entry using Azure Document Intelligence.**
 
-## Features
+A Bill of Entry (BoE) is the declaration an importer files with Indian Customs. It is a dense, multi-page form with header fields, duty summaries, invoices, line items, per-item duty breakdowns and licence debits. Importers and customs brokers typically re-key this information into their own systems by hand. CustomsLens converts the PDF into a validated relational record and gives a reviewer an interface to confirm or correct it.
 
-- **OCR Processing**: Uses Azure Document Intelligence (Form Recognizer) to extract text and tables from PDF documents
-- **Structured Data Extraction**: Parses OCR output into structured BoE data format
-- **Database Storage**: SQLite for local testing, Azure SQL for production
-- **Data Validation**: Comprehensive transformers for dates, numbers, and field validation
-- **Human Review Interface**: Streamlit app for reviewing and correcting extracted data
-- **Full Test Suite**: 59 unit tests covering transformers and database operations
+---
 
-## Project Structure
+## Pipeline
 
 ```
-boe/
-├── config/
-│   └── .env                    # Azure credentials (not in git)
-├── src/
-│   ├── ocr_full_document.py    # Full document OCR with page chunking
-│   ├── boe_parser.py           # Structured data parser
-│   ├── database/
-│   │   ├── models.py           # SQLAlchemy models (Azure SQL)
-│   │   ├── models_sqlite.py    # SQLAlchemy models (SQLite)
-│   │   ├── connection.py       # Database connection management
-│   │   └── schema.sql          # Full SQL DDL schema
-│   ├── pipeline/
-│   │   ├── transformers.py     # Data transformation functions
-│   │   ├── db_operations.py    # Database CRUD operations
-│   │   └── pipeline.py         # End-to-end processing pipeline
-│   └── app/
-│       └── streamlit_app.py    # Human review interface
-├── tests/
-│   ├── test_transformers.py    # Transformer unit tests
-│   └── test_database.py        # Database operation tests
-├── output/
-│   ├── boe_local.db            # Local SQLite database
-│   ├── boe_parsed_final.json   # Sample parsed output
-│   └── ocr_full_output.json    # Sample OCR output
-└── IMPLEMENTATION_PLAN.md      # Detailed implementation plan
+BoE PDF
+  │  ocr_full_document.py   split into 2-page chunks → Azure Document Intelligence (prebuilt-layout)
+  ▼
+OCR JSON: text lines, tables, confidence scores
+  │  boe_parser.py          section-aware parsing into typed records (Parts I–VI)
+  ▼
+Structured BoE JSON
+  │  pipeline/              normalise dates, amounts, GSTIN and IEC → SQLAlchemy
+  ▼
+SQLite (local) / Azure SQL (hosted)
+  │  app/streamlit_app.py   section-by-section review
+  ▼
+Reviewed record
 ```
 
-## Quick Start
+| Stage | Detail |
+|---|---|
+| OCR | Azure Document Intelligence `prebuilt-layout` model. The free tier processes two pages per request, so the PDF is split with PyMuPDF and the per-chunk results are merged with corrected page numbers. |
+| Parsing | About 35 typed record classes that mirror the form's sections (header, status, declarant, duty summary, manifest, invoices, items, item duties, licences, compliance, declarations). Tables are located by header keywords; free-text fields are recovered from line sequences. |
+| Normalisation | Handles the date formats seen on the form (`15/04/2022`, `30-MAR-22`, ISO), Indian number formatting, and GSTIN / IEC format validation. |
+| Storage | 12-table relational schema keyed on the document. The same SQLAlchemy models target SQLite for local work and Azure SQL for hosted use. |
+| Review | Streamlit interface that shows each extracted section (header, duties, items, manifest, licences, raw JSON) for a reviewer to check against the source document. |
 
-### Prerequisites
+## Results on the sample document
 
-- Python 3.10+
-- Azure Account (free tier works)
-- uv package manager
+The pipeline was developed against a single 17-page Bill of Entry.
 
-### Installation
+| Measure | Value |
+|---|---:|
+| Pages processed | 17 |
+| Tables detected | 81 |
+| Words analysed | 9,447 |
+| Words with OCR confidence above 0.90 | 95.2% |
+| Line items / licence records parsed | 30 / 30 |
+
+Field-level extraction accuracy has not yet been measured (see limitations).
+
+## Getting started
+
+Requirements: Python 3.10+, an Azure subscription (the free tiers are sufficient).
 
 ```bash
-# Clone and navigate to project
-cd /Users/shubh/boe
+git clone https://github.com/shubhstiws-new/customs-lens.git
+cd customs-lens
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 
-# Create virtual environment
-uv venv venv
-source venv/bin/activate
-
-# Install dependencies
-uv pip install azure-ai-formrecognizer azure-identity sqlalchemy pymupdf streamlit pytest
+pytest                                   # 59 unit tests; no Azure access needed
 ```
 
-### Configuration
+To run OCR, create `config/.env`:
 
-Create `config/.env` with Azure credentials:
 ```
-AZURE_DOC_INTEL_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
-AZURE_DOC_INTEL_KEY=your-key-here
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<resource>.cognitiveservices.azure.com/
+AZURE_DOCUMENT_INTELLIGENCE_KEY=<key>
 ```
 
-### Usage
+`scripts/02_setup_azure_resources.sh` provisions the resource with the Azure CLI and writes this file.
 
-#### 1. Process a PDF through OCR
 ```bash
-python src/ocr_full_document.py path/to/document.pdf
+python src/ocr_full_document.py path/to/bill_of_entry.pdf   # OCR + parse → output/
+streamlit run src/app/streamlit_app.py                      # review interface
 ```
 
-#### 2. Import parsed JSON to database
-```bash
-python -c "from src.pipeline import run_json_import; run_json_import('output/boe_parsed_final.json')"
+## Repository layout
+
+```
+src/ocr_full_document.py     PDF chunking and Azure OCR
+src/boe_parser.py            Section-aware parser and record types
+src/pipeline/                Normalisation, database operations, end-to-end pipeline
+src/database/                SQLAlchemy models (SQLite, Azure SQL) and DDL
+src/app/streamlit_app.py     Review interface
+scripts/                     Azure provisioning and environment checks
+tests/                       Unit tests for normalisation and database operations
 ```
 
-#### 3. Run the validation interface
-```bash
-streamlit run src/app/streamlit_app.py
-```
+## Current status and limitations
 
-#### 4. Run tests
-```bash
-python -m pytest tests/ -v
-```
+| Item | Status |
+|---|---|
+| OCR, parsing, storage, review interface | Implemented end to end on one document |
+| Corrections in the review interface | Read-only for now. A database update function exists (`update_document_field`) but is not yet connected to the interface. |
+| Unit tests | 59 tests covering normalisation functions and database operations |
+| Extraction accuracy | **Not yet measured.** The next step is a hand-verified ground-truth set of 5–10 documents and field-level precision/recall per section. |
+| Generalisation | Parsing rules were written against one document. Layout variation across ports, BoE types and form revisions has not been tested. |
+| Sample data | No sample PDF or OCR output is included, because real Bills of Entry contain importer identifiers. Test fixtures use synthetic values. |
+| Rule-based parsing | Parsing relies on keyword and table-header heuristics. A Document Intelligence custom extraction model or an LLM-based extractor evaluated on the same ground truth would be a natural comparison. |
 
-## Database Schema
+## Capabilities developed
 
-12 tables across document sections:
+Built over December 12–13, 2025 as a first document-AI project.
 
-| Table | Description |
-|-------|-------------|
-| `documents` | Main BoE header (BE No, Date, Port, IEC, GSTIN) |
-| `part1_status` | Status flags, country info |
-| `part1_declarant` | Importer/CB details |
-| `part1_duty_summary` | Duty totals (BCD, IGST, etc.) |
-| `part1_manifest` | IGM, MAWB, HAWB details |
-| `part1_payment` | Payment challans |
-| `part1_processing` | Processing events |
-| `part2_invoice` | Invoice details |
-| `part2_item` | Line items |
-| `part3_item_duty` | Per-item duty breakdown |
-| `part4_licence` | Licence debit details |
-| `part5_compliance` | Examination/OOC details |
-
-## Azure Resources Used
-
-| Resource | SKU | Monthly Cost |
-|----------|-----|--------------|
-| Document Intelligence | F0 (Free) | $0 (500 pages/month) |
-| SQL Database | Serverless Free | $0 (100K vCore seconds) |
-
-## Sample Data
-
-The system was tested on a 17-page Bill of Entry document containing:
-- 30 line items
-- 30 licence records
-- IGST: Rs. 113,241
-- Total Duty: Rs. 118,381
-
-OCR Results:
-- 95.2% high confidence (>90%)
-- 81 tables extracted
-- 9,447 words analyzed
-
-## License
-
-Private/Internal Use
+- Provisioning and operating Azure AI services through the CLI within free-tier limits
+- Working around service constraints (page limits) without losing document structure
+- Modelling a complex government form as a normalised relational schema
+- Designing a human-in-the-loop review step for extraction output
+- Handling documents that contain personal and commercial identifiers
