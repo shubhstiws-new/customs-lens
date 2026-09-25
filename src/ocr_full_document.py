@@ -5,6 +5,7 @@ Handles F0 tier 2-page limit by splitting PDF
 """
 
 import os
+import sys
 import json
 import fitz  # PyMuPDF
 from pathlib import Path
@@ -402,7 +403,7 @@ def extract_boe_fields(merged_data: dict) -> dict:
     return boe
 
 
-def main():
+def main(pdf_path: Path = PDF_PATH):
     """Main function to process full document."""
 
     print("=" * 60)
@@ -413,7 +414,7 @@ def main():
 
     # Split PDF into chunks (2 pages each for F0 tier)
     print("\nStep 1: Splitting PDF into 2-page chunks...")
-    chunks = split_pdf_into_chunks(PDF_PATH, pages_per_chunk=2)
+    chunks = split_pdf_into_chunks(pdf_path, pages_per_chunk=2)
 
     # Initialize client
     print("\nStep 2: Connecting to Azure Document Intelligence...")
@@ -489,4 +490,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(Path(sys.argv[1]) if len(sys.argv) > 1 else PDF_PATH)

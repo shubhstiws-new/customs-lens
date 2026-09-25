@@ -3,7 +3,6 @@ Tests for database operations
 """
 
 import pytest
-import os
 import sys
 from pathlib import Path
 from datetime import date
@@ -21,22 +20,11 @@ from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
-def test_db():
+def test_db(tmp_path):
     """Create a temporary test database"""
-    db_path = "output/test_boe.db"
-
-    # Remove if exists
-    if os.path.exists(db_path):
-        os.remove(db_path)
-
-    manager = BoEDatabaseManager(db_path)
+    manager = BoEDatabaseManager(str(tmp_path / "test_boe.db"))
     manager.create_tables()
-
     yield manager
-
-    # Cleanup
-    if os.path.exists(db_path):
-        os.remove(db_path)
 
 
 @pytest.fixture

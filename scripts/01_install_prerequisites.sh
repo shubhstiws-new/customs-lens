@@ -1,4 +1,6 @@
 #!/bin/bash
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Phase 1 - Step 1: Install Prerequisites
 # Run this script to install Azure CLI and Python dependencies
 
@@ -39,11 +41,11 @@ az --version | head -3
 # Create Python virtual environment
 echo ""
 echo "Step 2: Setting up Python virtual environment..."
-cd /Users/shubh/boe
+cd $PROJECT_ROOT
 
 if [ ! -d "venv" ]; then
     python3 -m venv venv
-    echo "Virtual environment created at /Users/shubh/boe/venv"
+    echo "Virtual environment created at $PROJECT_ROOT/venv"
 else
     echo "Virtual environment already exists"
 fi

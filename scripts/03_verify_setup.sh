@@ -1,4 +1,6 @@
 #!/bin/bash
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Phase 1 - Step 3: Verify Azure Setup
 # Run this to verify all resources are correctly configured
 
@@ -9,8 +11,8 @@ echo "BOE OCR MVP - Setup Verification"
 echo "=========================================="
 
 # Load environment variables
-if [ -f /Users/shubh/boe/config/.env ]; then
-    export $(grep -v '^#' /Users/shubh/boe/config/.env | xargs)
+if [ -f $PROJECT_ROOT/config/.env ]; then
+    export $(grep -v '^#' $PROJECT_ROOT/config/.env | xargs)
     echo "Configuration loaded from .env"
 else
     echo "ERROR: .env file not found. Run 02_setup_azure_resources.sh first."
@@ -57,8 +59,8 @@ fi
 # Test 3: Python environment
 echo ""
 echo "Test 3: Python environment..."
-if [ -d /Users/shubh/boe/venv ]; then
-    source /Users/shubh/boe/venv/bin/activate
+if [ -d $PROJECT_ROOT/venv ]; then
+    source $PROJECT_ROOT/venv/bin/activate
     if python -c "import azure.ai.formrecognizer" 2>/dev/null; then
         echo -e "${GREEN}PASS${NC} - Python dependencies installed"
         ((PASSED++))
@@ -76,7 +78,7 @@ echo ""
 echo "Test 4: SQL Database connectivity..."
 if [ -n "$AZURE_SQL_SERVER" ]; then
     # Use Python to test SQL connectivity
-    source /Users/shubh/boe/venv/bin/activate 2>/dev/null
+    source $PROJECT_ROOT/venv/bin/activate 2>/dev/null
     python3 << EOF
 import sys
 try:

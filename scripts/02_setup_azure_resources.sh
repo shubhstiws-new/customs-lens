@@ -1,4 +1,6 @@
 #!/bin/bash
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Phase 1 - Step 2: Setup Azure Resources
 # Run this after logging into Azure CLI with: az login
 
@@ -142,7 +144,7 @@ echo -e "${GREEN}Key Vault '$KEY_VAULT_NAME' created and secrets stored${NC}"
 # Step 5: Create .env file with configuration
 echo ""
 echo "Step 5: Creating configuration file..."
-cat > /Users/shubh/boe/config/.env << EOF
+cat > $PROJECT_ROOT/config/.env << EOF
 # Azure Document Intelligence
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=$DOC_INTEL_ENDPOINT
 AZURE_DOCUMENT_INTELLIGENCE_KEY=$DOC_INTEL_KEY
@@ -162,7 +164,7 @@ LOG_LEVEL=INFO
 BATCH_SIZE=10
 EOF
 
-echo -e "${GREEN}Configuration saved to /Users/shubh/boe/config/.env${NC}"
+echo -e "${GREEN}Configuration saved to $PROJECT_ROOT/config/.env${NC}"
 
 # Summary
 echo ""
@@ -177,7 +179,7 @@ echo "  - SQL Server: $SQL_SERVER_NAME"
 echo "  - SQL Database: $SQL_DB_NAME (Free tier)"
 echo "  - Key Vault: $KEY_VAULT_NAME"
 echo ""
-echo "Configuration saved to: /Users/shubh/boe/config/.env"
+echo "Configuration saved to: $PROJECT_ROOT/config/.env"
 echo ""
 echo "Free tier limits:"
 echo "  - Document Intelligence F0: 500 pages/month free"
